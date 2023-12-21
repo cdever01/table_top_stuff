@@ -1,6 +1,8 @@
 import re
 import numpy as np
-
+import urllib.request
+import requests
+from bs4 import BeautifulSoup
 
 
 
@@ -95,3 +97,214 @@ def print_it_out(Dict):
     print('STATISTICS')
     print('--------------------------------------------------------------')
     print(Statistics_box)
+
+
+
+class lookup_stats:
+    def __init__(self, url):
+        self.Dict = {
+            'Name' : '',
+            'CR' : '',
+            'XP' : '',
+            'Race' : '',
+            'Class' : '',
+            'MonsterSource':'',
+            'Alignment': '',
+            'Size': '',
+            'Type': '',
+            'SubType': '',
+            'Init': '',
+            'Senses': '',
+            'Aura': '',
+            'AC': '',
+            'AC_Mods': '',
+            'HP': '',
+            'HD': '',
+            'HP_Mods': '',
+            'Saves': '',
+            'Fort': '',
+            'Ref': '',
+            'Will': '',
+            'Save_Mods': '',
+            'Defensive Abilities': '',
+            'DR': '',
+            'Immune': '',
+            'Resist': '',
+            'SR': '',
+            'Weaknesses': '',
+            'Speed': '',
+            'Speed_Mod': '',
+            'Melee': '',
+            'Ranged': '',
+            'Space': '',
+            'Reach': '',
+            'Special Attacks': '',
+            'Spell Like Abilities': '',
+            'Spells Known': '',
+            'Spells Prepared': '',
+            'Spell Domains': '',
+            'Abilitiy Scores': '',
+            'AbilitiyScore_Mods': '',
+            'Base Atk': '',
+            'CMB': '',
+            'CMD': '',
+            'Feats': '',
+            'Skills': '',
+            'Racial Modifiers': '',
+            'Languages': '',
+            'SQ': '',
+            'Environment': '',
+            'Organization': '',
+            'Treasure': '',
+                    }
+        soup = BeautifulSoup(requests.Session().get(url).content,"html5lib")
+        self.text = soup.get_text()
+        self.Dict['Name'] = re.findall('\n\s*(.*) CR \d*\/?\d*\s*\n', self.text)[0]
+        self.relevent_text = re.findall(self.Dict['Name'] + ' CR \d*[\S\s]*', self.text)[0]
+        self.relevent_text = self.relevent_text.replace(u"\U00002013", "-")
+        self.cat_split = re.split('DEFENSE|OFFENSE|TACTICS|STATISTICS|SPECIAL ABILITIES|ECOLOGY',self.relevent_text)
+
+
+        self.list_of_classes = ['Barbarian', 'Bard', 'Cleric', 'Druid', 'Fighter', 'Monk', 'Paladin',
+                   'Ranger', 'Rogue', 'Sorcerer', 'Wizard', 'Alchemist', 'Cavalier', 'Gunslinger',
+                   'Inquisitor', 'Magus', 'Omdura', 'Oracle', 'Shifter', 'Summoner', 'Witch', 'Vampire Hunter', 'Vigilante',
+                    'Arcanist', 'Bloodrager', 'Brawler', 'Hunter', 'Investigator', 'Shaman', 'Skald', 'Slayer',
+                    'Swashbuckler', 'Warpriest', 'Kineticist', 'Medium', 'Mesmerist', 'Occultist', 'Psychic', 'Spiritualist',
+                    'Antipaladin', 'Ninja', 'Samurai', 'Adept', 'Aristocrat', 'Commoner', 'Expert', 'Warrior']
+
+        #for box in range(len(self.cat_split)):
+        #    print(box)
+        #    print(self.cat_split[box])
+
+    def get_top_layer(self):
+
+        self.Dict['CR'], self.Dict['XP'] = re.findall(self.Dict['Name']+'\s*CR\s*(.*)\s*XP (\d*,?\d*)',self.cat_split[0])[0]
+        self.Dict['Alignment'], self.Dict['Size'] =  re.findall('([A-Z][A-Z]?) ([a-zA-Z][a-z]+)', self.cat_split[0])[0]
+        self.Dict['Type'] = re.findall(self.Dict['Size'] + '\s*([\S\s]*?)(?:\(|Init)', self.cat_split[0])[0]
+        self.Dict['SubType'] = re.findall(self.Dict['Type'] + '\s*([\S\s]*?)(?:Init)', self.cat_split[0])[0]
+        if 'Aura' in self.cat_split[0]:
+            self.Dict['Init'], self.Dict['Senses'], self.Dict['Aura'] = re.findall('Init\s*(.?\d*)\;\s*Senses\s*(.*)\s*Aura\s*(.*)', self.cat_split[0])[0]
+        else:
+            self.Dict['Init'], self.Dict['Senses'] = re.findall('Init\s*(.?\d*)\;\s*Senses\s*(.*)', self.cat_split[0])[0]
+        race_class = re.findall(self.Dict['XP'] + '\s*((?:(?!\s*'+self.Dict['Alignment']+').)*)', self.cat_split[0])[0]
+        if race_class.upper().isupper():
+            if race_class[-1].isnumeric():
+                if len(race_class.split(' ')) ==3:
+                    race = race_class.split(' ')[0]
+                    cla = race_class.split(' ')[0] + ' ' + race_class.split(' ')[0]
+                else:
+                    for class_name in self.list_of_classes:
+                        if class_name.casefold() in race_class.casefold():
+                            race, cla = re.findall('(.*)(' + class_name.casefold() + '.*)',race_class.casefold())[0]
+                            break
+            else:
+                race = race_class
+                cla = ''
+        else:
+            race = ''
+            cla = ''
+        self.Dict['Race'] = race
+        self.Dict['Class'] = cla
+
+    def get_defense(self):
+
+        self.Dict['AC'], self.Dict['AC_Mods'] = re.findall('AC (\d*,\s*touch \d*, flat-footed \d*) (\([\S|\s]*[a-z]\))\s*(?:hp|Fort)', self.cat_split[1])[0]
+        self.Dict['HP'], self.Dict['HD'] = re.findall(r'\s*hp\s*(\d*)\s*(\([\S|\s]*\))', self.cat_split[1])[0]#self.defense_stats[2]
+
+        self.Dict['Saves'] = re.findall('\s*(Fort [\S\s]*?)(?:\Z|Def|Imm|Resis|Weak)',self.cat_split[1])[0]
+        self.Dict['Fort'] =  re.findall('Fort\s*(.*)',self.Dict['Saves'])[0]
+        self.Dict['Ref'] = re.findall('Ref\s*(.*)',self.Dict['Saves'])[0]
+        self.Dict['Will'] = re.findall('Will\s*(.*)',self.Dict['Saves'])[0]
+
+
+        if 'Defensive Abilities' in self.cat_split[1]:
+            self.Dict['Defensive Abilities'] = re.findall(r'Defensive Abilities ([\S\s]*?)(?:\Z|;)', self.cat_split[1])[0]
+
+        if 'Immune' in self.cat_split[1]:
+            self.Dict['Immune'] = re.findall(r'Immune ([\S\s]*?)(?:\Z|;)', self.cat_split[1])[0]
+
+        if 'Resist' in self.cat_split[1]:
+            self.Dict['Resist'] = re.findall(r'Resist ([\S\s]*?)(?:\Z|[A-Z])', self.cat_split[1])[0]
+
+        if 'Weaknesses' in self.cat_split[1]:
+            self.Dict['Weaknesses'] = re.findall(r'Weaknesses ([\S\s]*?)(?:\Z|[A-Z])', self.cat_split[1])[0]
+
+        if 'DR ' in self.cat_split[1]:
+            self.Dict['DR'] = re.findall(r'DR ([\S\s]*?)(?:\Z|;)', self.cat_split[1])[0]
+
+        if 'SR' in self.cat_split[1]:
+            self.Dict['SR'] = re.findall(r'SR (\d*)', self.cat_split[1])[0]
+
+    def get_offense(self):
+        self.Dict['Speed'] = re.findall(r'Speed ((?:(?!Melee|Ranged|Space|Reach|Special Attack|Spell)[\S\s])*)',self.cat_split[2])[0]
+        if 'Melee' in self.cat_split[2]:
+            self.Dict['Melee'] = re.findall(r'Melee ((?:(?!Ranged|Space|Reach|Special Attack|Spell)[\S\s])*)',self.cat_split[2])[0]
+        if 'Ranged' in self.cat_split[2]:
+            self.Dict['Ranged'] = re.findall(r'Ranged ((?:(?!Space|Reach|Special Attack|Spell)[\S\s])*)',self.cat_split[2])[0]
+
+        if 'Space' in self.cat_split[2]:
+            self.Dict['Space'] = re.findall(r'Space ((?:(?!Reach|Special Attack|Spell)[\S\s])*)',self.cat_split[2])[0]
+
+        if 'Reach' in self.cat_split[2]:
+            self.Dict['Reach'] = re.findall(r'Reach ((?:(?!Special Attacks|Spell)[\S\s])*)',self.cat_split[2])[0]
+
+        if 'Special Attacks' in self.cat_split[2]:
+            self.Dict['SpecialAttacks'] = re.findall(r'Special Attacks ((?:(?!Spell)[\S\s])*)',self.cat_split[2])[0]
+
+        if 'Spell-Like' in self.cat_split[2]:
+            if 'Spells Known' in self.cat_split[2]:
+                self.Dict['Spell Like Abilities'] = re.findall(r'Spell\WLike Abilities ((?:(?!([A-Z]\w*)?\s*Spells)[\S\s])*)',self.cat_split[2])[0]
+                if len(self.Dict['Spell Like Abilities']) > 1:
+                    self.Dict['Spell Like Abilities'] = self.Dict['Spell Like Abilities'][0]
+            else:
+                self.Dict['Spell Like Abilities'] = re.findall(r'Spell\WLike Abilities (.*)',self.cat_split[2])[0]
+
+        if 'Spells Known' in self.cat_split[2]:
+            self.Dict['Spells Known'] = re.findall(r'Spells Known ([\S\s]*)',self.cat_split[2])[0]
+
+    def get_statistics(self):
+
+
+        #Sometimes there is a TACTICS section before the STATISTICS section.
+        #This effects the index of cat_split that should be used
+        for i in range(len(self.cat_split)):
+            find_section = re.findall(r'(Str[\S|\s]*Cha\s\d*)',self.cat_split[i])
+            if len(find_section) > 0:
+                sec=i
+                break
+        self.Dict['Abilitiy Scores'] = re.findall(r'(Str[\S|\s]*Cha\s\d*)',self.cat_split[sec])[0]
+        self.Dict['Base Atk'] = re.findall(r'Base\s*Atk\s(\W?\d*)', self.cat_split[sec])[0]
+        self.Dict['CMB'] = re.findall(r'CMB([\S|\s]*)CMD\s*\d*\s*', self.cat_split[sec])[0]
+        self.Dict['CMD'] = re.findall(r'CMD\s((?:(?!\s*[A-Z]).)*)', self.cat_split[sec])[0]
+        if 'Feats' in self.cat_split[sec]:
+            self.Dict['Feats'] = re.findall(r'Feats\s((?:(?!\s*Skills|Racial|Languages|SQ).)*)', self.cat_split[sec])[0]
+
+        if 'Skills' in self.cat_split[sec]:
+            self.Dict['Skills'] = re.findall(r'Skills\s((?:(?!\s*Racial|Languages|SQ).)*)', self.cat_split[sec])[0]
+        if 'Racial Mod' in self.cat_split[sec]:
+            self.Dict['Racial Modifiers'] = re.findall(r'Racial\sModifiers\s((?:(?!\s*Languages|SQ).)*)', self.cat_split[sec])[0]
+        if 'Languages' in self.cat_split[sec]:
+            self.Dict['Languages'] = re.findall(r'Languages\s((?:(?!\s*SQ).)*)', self.cat_split[sec])[0]
+        if ' SQ ' in self.cat_split[sec]:
+            self.Dict['SQ'] = re.findall(r'\sSQ\s(.*)', self.cat_split[sec])[0]
+
+
+
+    def _clean_it_up(self):
+        for key in self.Dict:
+            if '\n' in self.Dict[key]:
+                self.Dict[key] = self.Dict[key].replace('\n', ' ')
+            if len(self.Dict[key]) > 0:
+                if self.Dict[key][0] == ' ':
+                    self.Dict[key] = self.Dict[key][1:]
+                if self.Dict[key][-1] == ' ':
+                    self.Dict[key] = self.Dict[key][:-1]
+
+
+    def get_em_all(self):
+        self.get_top_layer()
+        self.get_defense()
+        self.get_offense()
+        self.get_statistics()
+        self._clean_it_up()
+        return self.Dict
